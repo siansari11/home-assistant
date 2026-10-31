@@ -1,9 +1,25 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import tailwindcss from 'tailwindcss';
+import autoprefixer from 'autoprefixer';
+
+const webRoot = fileURLToPath(new URL('./web', import.meta.url));
+const tailwindConfig = fileURLToPath(new URL('./tailwind.config.cjs', import.meta.url));
 
 export default defineConfig({
+  root: webRoot,
   base: '/home-assistant/',
+  build: {
+    outDir: fileURLToPath(new URL('./dist', import.meta.url)),
+    emptyOutDir: true,
+  },
+  css: {
+    postcss: {
+      plugins: [tailwindcss({ config: tailwindConfig }), autoprefixer()],
+    },
+  },
   plugins: [
     react(),
     VitePWA({

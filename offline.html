@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Our Home</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f6f1e8;
+        --ink: #241f1a;
+        --muted: #6e655c;
+        --sage: #3c6b54;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+        background:
+          radial-gradient(800px 320px at 0% 0%, rgba(60, 107, 84, 0.14), transparent 50%),
+          var(--paper);
+        color: var(--ink);
+        font-family: "Segoe UI", sans-serif;
+      }
+      main { max-width: 36rem; }
+      .mark {
+        margin: 0;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        font-size: 0.78rem;
+        color: var(--sage);
+      }
+      h1 {
+        margin: 0.6rem 0 0.8rem;
+        font-size: 3rem;
+        font-weight: 560;
+        letter-spacing: -0.03em;
+      }
+      p { margin: 0; font-size: 1.15rem; line-height: 1.45; color: var(--muted); }
+      button {
+        margin-top: 1.6rem;
+        border: 0;
+        border-radius: 999px;
+        padding: 0.9rem 1.4rem;
+        background: var(--sage);
+        color: white;
+        font: inherit;
+        font-size: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="mark">Our Home</p>
+      <h1>No connection</h1>
+      <p>
+        The tablet could not open the kitchen dashboard. Check the Wi-Fi, then try again.
+        After the dashboard has loaded once, a saved copy can open without a connection.
+      </p>
+      <button type="button" onclick="location.replace('https://siansari11.github.io/home-assistant/')">Try again</button>
+    </main>
+  </body>
+</html>

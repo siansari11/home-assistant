@@ -2,7 +2,7 @@
 
 Kitchen-tablet dashboard for Sehrish and André in Seddiner See. It is a Vite + React + TypeScript + Tailwind PWA: a lock screen, home, calendars, the week’s meals, chores, a shopping list, and a kitchen timer. Data stays in this browser’s `localStorage`.
 
-Live site, once GitHub Pages is pointed at Actions: [https://siansari11.github.io/home-assistant/](https://siansari11.github.io/home-assistant/)
+Live site: [https://siansari11.github.io/home-assistant/](https://siansari11.github.io/home-assistant/)
 
 ## Run
 
@@ -20,15 +20,14 @@ npm run preview
 
 ## Deploy
 
-Pushes to `main` run `.github/workflows/pages.yml`. The workflow installs dependencies, builds the Vite app, and deploys the `dist` folder with GitHub Actions.
+The Vite app lives in `web/`. `npm run build` writes `dist/`, and the built `index.html` loads `/home-assistant/assets/…` hashed JS and CSS. There is no trailing hyphen in the path.
 
-One-time setup in the GitHub repo:
+Pushes to `main` run `.github/workflows/pages.yml`, which builds the app and:
 
-1. The repository should be **public** for free GitHub Pages (a private repo needs a paid plan).
-2. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
-3. Push to `main`. The action publishes [https://siansari11.github.io/home-assistant/](https://siansari11.github.io/home-assistant/).
+1. Copies that build onto the repository root (`index.html`, `assets/`, and the other static files). GitHub Pages is publishing `main` as a static site, so those files are what the live URL serves. This does not use Actions artifact storage.
+2. Mirrors `dist/` to the `gh-pages` branch with `peaceiris/actions-gh-pages`.
 
-`vite.config.ts` sets `base: '/home-assistant/'` so asset URLs match that site. There is no trailing hyphen in the path.
+The repository is public, which free GitHub Pages requires. Do not edit the root `index.html` by hand; change `web/` and let the workflow publish the build.
 
 ## Kiosk
 
