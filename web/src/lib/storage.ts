@@ -22,7 +22,16 @@ export function createDefaultStore(): Store {
     meals: seedMeals(),
     chores: seedChores(),
     shopping: seedShopping(),
-    settings: { calendars: { sehrish: '', andre: '' }, icsProxy: '' },
+    settings: {
+      calendars: { sehrish: '', andre: '' },
+      icsProxy: '',
+      echoAlarm: false,
+      spotifyUrl: '',
+      spotifyClientId: '',
+      apiBase: '',
+      alexaSkillUrl: '',
+      ringOnAlexa: false,
+    },
     calendarCache: EMPTY_CALENDAR,
   };
 }
@@ -48,6 +57,12 @@ function hydrate(raw: unknown): Store {
         andre: typeof calendars.andre === 'string' ? calendars.andre : '',
       },
       icsProxy: typeof settings.icsProxy === 'string' ? settings.icsProxy : '',
+      echoAlarm: settings.echoAlarm === true,
+      spotifyUrl: typeof settings.spotifyUrl === 'string' ? settings.spotifyUrl : '',
+      spotifyClientId: typeof settings.spotifyClientId === 'string' ? settings.spotifyClientId : '',
+      apiBase: typeof settings.apiBase === 'string' ? settings.apiBase : '',
+      alexaSkillUrl: typeof settings.alexaSkillUrl === 'string' ? settings.alexaSkillUrl : '',
+      ringOnAlexa: settings.ringOnAlexa === true,
     },
     calendarCache: {
       fetchedAt: typeof cache.fetchedAt === 'number' ? cache.fetchedAt : null,

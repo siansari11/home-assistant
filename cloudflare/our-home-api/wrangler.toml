@@ -1,0 +1,16 @@
+name = "our-home-api"
+main = "src/index.js"
+compatibility_date = "2026-10-31"
+
+# Optional. Create with: npx wrangler kv namespace create TOKENS
+# Then uncomment and paste the id. Without KV, Spotify refresh tokens stay on the tablet.
+# [[kv_namespaces]]
+# binding = "TOKENS"
+# id = ""
+
+# Deploy (free):
+#   cd cloudflare/our-home-api
+#   npx wrangler login
+#   npx wrangler deploy
+# Paste https://our-home-api.<account>.workers.dev into House → Connections → API worker URL.
+# Use the same origin + /alexa as the Alexa skill endpoint.

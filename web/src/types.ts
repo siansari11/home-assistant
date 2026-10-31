@@ -55,6 +55,13 @@ export type Store = {
     calendars: Record<PersonId, string>;
     /** Cloudflare ICS proxy base URL. Empty uses VITE_ICS_PROXY, which defaults to empty. */
     icsProxy: string;
+    echoAlarm: boolean;
+    spotifyUrl: string;
+    spotifyClientId: string;
+    /** our-home-api worker origin, no trailing path. Empty uses direct Spotify PKCE. */
+    apiBase: string;
+    alexaSkillUrl: string;
+    ringOnAlexa: boolean;
   };
   calendarCache: CalendarCache;
 };

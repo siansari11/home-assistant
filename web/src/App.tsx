@@ -4,6 +4,7 @@ import { LockIcon, WeatherGlyph } from './components/Icons';
 import { playChime } from './lib/beep';
 import { formatClock, todayIso } from './lib/dates';
 import { configuredProxy, fetchIcs, normalizeCalendarUrl, parseIcs } from './lib/ics';
+import { completeSpotifyLogin } from './lib/spotify';
 import { loadStore, loadTimer, saveStore, saveTimer } from './lib/storage';
 import { loadWeather, weatherLabel } from './lib/weather';
 import { CalendarScreen } from './screens/CalendarScreen';
@@ -37,6 +38,9 @@ export function App() {
   const [now, setNow] = useState(() => new Date());
   const [weather, setWeather] = useState<WeatherReport | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [spotifyRefresh, setSpotifyRefresh] = useState(0);
+  const [spotifyError, setSpotifyError] = useState('');
+  const [alexaNote, setAlexaNote] = useState('');
   const audioRef = useRef<AudioContext | null>(null);
   const storeRef = useRef(store);
   storeRef.current = store;
@@ -62,6 +66,47 @@ export function App() {
     const id = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const state = params.get('state');
+    if (!code || !state) return;
+    const settings = storeRef.current.settings;
+    void completeSpotifyLogin(code, state, settings.spotifyClientId, settings.apiBase)
+      .then(() => setSpotifyRefresh((value) => value + 1))
+      .catch((error: unknown) => setSpotifyError(error instanceof Error ? error.message : 'Spotify login failed.'))
+      .finally(() => {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('code');
+        url.searchParams.delete('state');
+        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (timer.status !== 'running' || !timer.endsAt) return;
+    const settings = storeRef.current.settings;
+    if (!settings.ringOnAlexa) return;
+    if (!settings.apiBase.trim()) {
+      setAlexaNote('Turn on the API worker URL under Connections before Alexa can take this timer.');
+      return;
+    }
+    const seconds = Math.max(1, Math.round((timer.endsAt - Date.now()) / 1000));
+    const minutes = Math.max(1, Math.round(seconds / 60));
+    void fetch(`${settings.apiBase.replace(/\/$/, '')}/alexa/timer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ durationSeconds: seconds, label: timer.label || 'Our Home' }),
+    })
+      .then(async (response) => {
+        const json = (await response.json()) as { ok?: boolean; say?: string; message?: string };
+        setAlexaNote(json.say || json.message || (json.ok ? 'Alexa timer requested.' : 'Alexa did not start the timer.'));
+      })
+      .catch(() => {
+        setAlexaNote(`Could not reach the API worker. Say: Alexa, tell Our Home to set a timer for ${minutes} minutes.`);
+      });
+  }, [timer.endsAt, timer.label, timer.status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,14 +137,47 @@ export function App() {
         if (finished) return;
         finished = true;
         setTimer((current) => ({ ...current, status: 'done', remainingMs: 0, endsAt: null }));
-        if (audioRef.current) playChime(audioRef.current);
-        navigator.vibrate?.([180, 80, 180, 80, 240]);
         return;
       }
       setTimerState((current) => (current.endsAt === endsAt ? { ...current, remainingMs } : current));
     }, 200);
     return () => window.clearInterval(id);
   }, [setTimer, timer.endsAt, timer.status]);
+
+  useEffect(() => {
+    if (timer.status !== 'done') return;
+    let stopped = false;
+    const long = storeRef.current.settings.echoAlarm;
+    const ring = () => {
+      if (stopped) return;
+      if (!audioRef.current) audioRef.current = new AudioContext();
+      const context = audioRef.current;
+      void context.resume().then(() => {
+        if (!stopped && context.state === 'running') playChime(context, long);
+      });
+      navigator.vibrate?.(long ? [320, 100, 320, 100, 320, 160, 480] : [180, 80, 180, 80, 240]);
+    };
+    ring();
+    const id = window.setInterval(ring, long ? 4200 : 2200);
+    const unlock = () => {
+      void audioRef.current?.resume();
+    };
+    window.addEventListener('pointerdown', unlock);
+    return () => {
+      stopped = true;
+      window.clearInterval(id);
+      window.removeEventListener('pointerdown', unlock);
+    };
+  }, [timer.status]);
+
+  const dismissTimer = useCallback(() => {
+    setTimer((current) => ({
+      ...current,
+      status: 'idle',
+      remainingMs: current.durationMs > 0 ? current.durationMs : 10 * 60 * 1000,
+      endsAt: null,
+    }));
+  }, [setTimer]);
 
   useEffect(() => {
     if (locked || timer.status === 'running' || timer.status === 'done') return;
@@ -189,8 +267,15 @@ export function App() {
   const nextEvent =
     store.calendarCache.events.find((event) => (event.allDay ? event.end > today : new Date(event.start).getTime() >= now.getTime() - 60_000)) ?? null;
 
+  const alarm = timer.status === 'done' ? <AlarmBanner label={timer.label} onDismiss={dismissTimer} /> : null;
+
   if (locked) {
-    return <LockScreen now={now} weather={weather} nextEvent={nextEvent} timer={timer} onWake={() => setLocked(false)} />;
+    return (
+      <>
+        <LockScreen now={now} weather={weather} nextEvent={nextEvent} timer={timer} onWake={() => setLocked(false)} />
+        {alarm}
+      </>
+    );
   }
 
   return (
@@ -209,9 +294,13 @@ export function App() {
               </span>
             )}
             {(timer.status === 'running' || timer.status === 'paused' || timer.status === 'done') && (
-              <button type="button" onClick={() => setScreen('house')} className="rounded-full bg-sage-soft px-3 py-1.5 text-sm font-medium text-sage-deep">
-                {timer.status === 'done' ? "Time's up" : formatClockRemaining(timer.remainingMs)}
-                {timer.label ? ` · ${timer.label}` : ''}
+              <button
+                type="button"
+                onClick={() => (timer.status === 'done' ? dismissTimer() : setScreen('house'))}
+                className={`rounded-full px-3 py-1.5 text-sm font-medium ${timer.status === 'done' ? 'bg-clay text-white' : 'bg-sage-soft text-sage-deep'}`}
+              >
+                {timer.status === 'done' ? 'Dismiss' : formatClockRemaining(timer.remainingMs)}
+                {timer.status !== 'done' && timer.label ? ` · ${timer.label}` : ''}
               </button>
             )}
             <button type="button" aria-label="Lock" onClick={() => setLocked(true)} className="grid h-11 w-11 place-items-center rounded-full bg-card text-ink">
@@ -243,10 +332,27 @@ export function App() {
               onProxy={(icsProxy) => updateStore((current) => ({ ...current, settings: { ...current.settings, icsProxy } }))}
               onImport={importCalendar}
               onSync={() => void sync()}
+              spotifyRefresh={spotifyRefresh}
+              spotifyError={spotifyError}
+              alexaNote={alexaNote}
+              onPatchSettings={(partial) =>
+                updateStore((current) => ({ ...current, settings: { ...current.settings, ...partial } }))
+              }
             />
           )}
         </main>
       </div>
+      {alarm}
+    </div>
+  );
+}
+
+function AlarmBanner({ label, onDismiss }: { label: string; onDismiss: () => void }) {
+  return (
+    <div className="alarm-flash pointer-events-none fixed inset-0 z-50 flex items-end justify-center p-6">
+      <button type="button" onClick={onDismiss} className="pointer-events-auto rounded-full bg-clay px-6 py-4 text-lg font-medium text-white shadow-card">
+        Dismiss{label ? ` · ${label}` : ''}
+      </button>
     </div>
   );
 }

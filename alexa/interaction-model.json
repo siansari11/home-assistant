@@ -1,0 +1,26 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "our home",
+      "intents": [
+        { "name": "AMAZON.StopIntent", "samples": [] },
+        { "name": "AMAZON.CancelIntent", "samples": [] },
+        { "name": "AMAZON.HelpIntent", "samples": [] },
+        {
+          "name": "SetTimerIntent",
+          "slots": [{ "name": "duration", "type": "AMAZON.DURATION" }],
+          "samples": [
+            "set a timer for {duration}",
+            "set a timer",
+            "start a timer for {duration}"
+          ]
+        },
+        {
+          "name": "DismissTimerIntent",
+          "samples": ["dismiss the timer", "stop the alarm", "cancel the timer"]
+        }
+      ],
+      "types": []
+    }
+  }
+}

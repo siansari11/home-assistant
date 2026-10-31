@@ -90,6 +90,29 @@ Desktop Chrome, for a spare laptop on the counter:
 google-chrome --kiosk https://siansari11.github.io/home-assistant/
 ```
 
+## Connections
+
+House → **Connections**. Music goes to an Echo through Spotify Connect. Alexa is only for timers.
+
+### Spotify
+
+1. Open [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) and create an app.
+2. Add redirect URIs exactly: `https://siansari11.github.io/home-assistant/` and `http://localhost:5173/home-assistant/`.
+3. Paste the Client ID into House → Connections. Leave the client secret on Spotify; this app uses PKCE and does not store it.
+4. In the Alexa app, link Spotify (Settings → Music & Podcasts) so each Echo appears as a Spotify Connect speaker.
+5. Tap **Connect Spotify**. Premium is required for the in-browser player. Transfer, play, pause, next, previous, and volume use Spotify Connect and work on the Echo without a custom music skill.
+6. Optional: deploy `cloudflare/our-home-api` and paste that origin into **API worker URL**. With a KV namespace named `TOKENS`, the worker keeps the Spotify refresh token. Otherwise the refresh token stays in this browser only.
+
+### Alexa timers
+
+1. In the [Alexa Developer Console](https://developer.amazon.com/alexa/console/ask), create a custom skill named Our Home, invocation name `our home`.
+2. Paste `alexa/interaction-model.json` into the English (US) interaction model, and use `alexa/skill.json` as a guide for the manifest. Set the endpoint to `https://our-home-api.<account>.workers.dev/alexa`.
+3. Enable the Timers permission (`alexa::alerts:timers:skill:readwrite`).
+4. Build the skill, then enable the dev skill on the same Amazon account (Alexa app → Skills → Your Skills → Dev).
+5. House → **Connect Alexa** opens that dev-skill list. **Ring timer on Alexa** asks the worker to create an Echo timer when the kitchen timer starts.
+
+Amazon accepts timer creation while you are talking to the skill (`Alexa, tell Our Home to set a timer for ten minutes`). The tablet cannot reliably create an Echo timer out of that session; the screen says so and gives the phrase to speak. The kitchen alarm still loops on the tablet until **Dismiss**.
+
 ## Calendar sync
 
 Google’s secret iCal address does not send CORS headers, so the tablet cannot download it directly. Public proxies (`corsproxy.io`, `allorigins.win`) time out or refuse the request. House therefore has two ways to load Sehrish and André.

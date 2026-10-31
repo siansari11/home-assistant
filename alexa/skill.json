@@ -1,0 +1,25 @@
+{
+  "manifest": {
+    "publishingInformation": {
+      "locales": {
+        "en-US": {
+          "name": "Our Home",
+          "summary": "Personal kitchen timers for Our Home.",
+          "description": "Sets an Echo timer while you are talking to Our Home. Music plays through Spotify Connect, not this skill."
+        }
+      },
+      "isAvailableWorldwide": false,
+      "distributionCountries": ["DE", "US"]
+    },
+    "apis": {
+      "custom": {
+        "endpoint": {
+          "uri": "https://our-home-api.YOUR_SUBDOMAIN.workers.dev/alexa"
+        },
+        "interfaces": []
+      }
+    },
+    "permissions": [{ "name": "alexa::alerts:timers:skill:readwrite" }],
+    "manifestVersion": "1.0"
+  }
+}
