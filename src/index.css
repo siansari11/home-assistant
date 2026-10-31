@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1000px 420px at 0% -10%, rgba(196, 106, 74, 0.1), transparent 50%),
+    radial-gradient(800px 420px at 100% 0%, rgba(60, 107, 84, 0.12), transparent 45%),
+    #f6f1e8;
+  color: #241f1a;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.marquee-fade {
+  mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-fade {
+    mask-image: none;
+  }
+}
