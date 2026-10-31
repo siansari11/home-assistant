@@ -5,7 +5,7 @@
         "en-US": {
           "name": "Our Home",
           "summary": "Personal kitchen timers for Our Home.",
-          "description": "Sets an Echo timer while you are talking to Our Home. Music plays through Spotify Connect, not this skill."
+          "description": "Rings the Echo when the Our Home kitchen timer ends. The tablet uses Alexa reminders. Saying Alexa, tell Our Home to set a timer uses an in-session timer."
         }
       },
       "isAvailableWorldwide": false,
@@ -19,7 +19,10 @@
         "interfaces": []
       }
     },
-    "permissions": [{ "name": "alexa::alerts:timers:skill:readwrite" }],
+    "permissions": [
+      { "name": "alexa::alerts:reminders:skill:readwrite" },
+      { "name": "alexa::alerts:timers:skill:readwrite" }
+    ],
     "manifestVersion": "1.0"
   }
 }

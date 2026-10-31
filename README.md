@@ -103,15 +103,17 @@ House → **Connections**. Music goes to an Echo through Spotify Connect. Alexa 
 5. Tap **Connect Spotify**. Premium is required for the in-browser player. Transfer, play, pause, next, previous, and volume use Spotify Connect and work on the Echo without a custom music skill.
 6. Optional: deploy `cloudflare/our-home-api` and paste that origin into **API worker URL**. With a KV namespace named `TOKENS`, the worker keeps the Spotify refresh token. Otherwise the refresh token stays in this browser only.
 
-### Alexa timers
+### Ring the Echo
 
-1. In the [Alexa Developer Console](https://developer.amazon.com/alexa/console/ask), create a custom skill named Our Home, invocation name `our home`.
-2. Paste `alexa/interaction-model.json` into the English (US) interaction model, and use `alexa/skill.json` as a guide for the manifest. Set the endpoint to `https://our-home-api.<account>.workers.dev/alexa`.
-3. Enable the Timers permission (`alexa::alerts:timers:skill:readwrite`).
-4. Build the skill, then enable the dev skill on the same Amazon account (Alexa app → Skills → Your Skills → Dev).
-5. House → **Connect Alexa** opens that dev-skill list. **Ring timer on Alexa** asks the worker to create an Echo timer when the kitchen timer starts.
+The tablet cannot call Amazon’s Timers API on its own. That API only works while someone is talking to the skill. Our Home instead creates an Alexa **reminder**, which the Echo speaks aloud when the kitchen timer ends. The tablet alarm still loops until **Dismiss**.
 
-Amazon accepts timer creation while you are talking to the skill (`Alexa, tell Our Home to set a timer for ten minutes`). The tablet cannot reliably create an Echo timer out of that session; the screen says so and gives the phrase to speak. The kitchen alarm still loops on the tablet until **Dismiss**.
+1. `cd cloudflare/our-home-api && npx wrangler kv namespace create TOKENS`, then uncomment the KV block in `wrangler.toml` with the id it prints.
+2. `npx wrangler secret put ALEXA_CLIENT_ID` and `npx wrangler secret put ALEXA_CLIENT_SECRET`. Those values are on the skill’s Build → Permissions page, under Alexa Skill Messaging. Then `npx wrangler deploy`.
+3. In the [Alexa Developer Console](https://developer.amazon.com/alexa/console/ask), create a custom skill named Our Home, invocation name `our home`. Paste `alexa/interaction-model.json`. Use `alexa/skill.json` as the manifest guide. Endpoint: `https://our-home-api.<account>.workers.dev/alexa`.
+4. Turn on both permissions: Reminders (`alexa::alerts:reminders:skill:readwrite`) and Timers (`alexa::alerts:timers:skill:readwrite`).
+5. Build the skill. In the Alexa app, open Skills → Your Skills → Dev, enable Our Home, and allow reminders.
+6. On the tablet, House → Connections → paste the worker origin (no `/alexa`) into **API worker URL**. Tap **Connect Alexa** if you still need the dev-skill list. Turn on **Ring on Echo**. **Test Echo in 1 minute** checks the path.
+7. Start the kitchen timer. The Echo announces at the end. If the worker has no saved Alexa login yet, it tells you to say `Alexa, tell Our Home to set a timer for … minutes`, which uses the in-session Timers API.
 
 ## Calendar sync
 

@@ -40,6 +40,7 @@ export function ConnectionsCard({
   const [activeId, setActiveId] = useState('');
   const [message, setMessage] = useState('');
   const [volume, setVolumeState] = useState(40);
+  const [echoTest, setEchoTest] = useState('');
   const connected = Boolean(loadSpotifyTokens());
   const clientId = store.settings.spotifyClientId;
   const apiBase = store.settings.apiBase;
@@ -199,9 +200,16 @@ export function ConnectionsCard({
           {(loginError || message) && <p className="mt-2 text-sm text-clay-deep">{loginError || message}</p>}
         </div>
         <div>
-          <h3 className="font-medium">Alexa timers</h3>
-          <p className="mt-1 text-sm text-muted">
-            Music stays on Spotify Connect. This switch only asks Alexa to start a timer. Amazon allows that from the Our Home skill while you are talking to it. From the tablet, the worker reports if a voice session is still required.
+          <h3 className="font-medium">Ring the Echo</h3>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted">
+            <li>Deploy cloudflare/our-home-api and paste its URL below.</li>
+            <li>In the Alexa console, create the Our Home skill from alexa/ and turn on Reminders and Timers.</li>
+            <li>Set the skill endpoint to that URL plus /alexa. Copy the Alexa Skill Messaging client id and secret into the worker secrets.</li>
+            <li>Enable the dev skill on this Amazon account and allow reminders.</li>
+            <li>Turn on Ring on Echo, then start the kitchen timer. The Echo announces when it ends. The tablet alarm still loops until Dismiss.</li>
+          </ol>
+          <p className="mt-2 text-sm text-muted">
+            Amazon’s timer API only works while you are talking to the skill. The tablet creates an Alexa reminder instead, which is what makes the Echo speak at the end. If that login is missing, say: Alexa, tell Our Home to set a timer.
           </p>
           <label className="mt-3 block text-sm">
             API worker URL
@@ -238,9 +246,32 @@ export function ConnectionsCard({
               checked={store.settings.ringOnAlexa}
               onChange={(event) => onPatch({ ringOnAlexa: event.target.checked })}
             />
-            Ring timer on Alexa when the kitchen timer starts
+            Ring on Echo when the kitchen timer starts
           </label>
-          {alexaNote && <p className="mt-2 text-sm text-clay-deep">{alexaNote}</p>}
+          <button
+            type="button"
+            className="mt-3 rounded-full bg-ink px-4 py-2 text-sm text-white"
+            onClick={() => {
+              const base = store.settings.apiBase.replace(/\/$/, '');
+              if (!base) {
+                setEchoTest('Paste the API worker URL first.');
+                return;
+              }
+              void fetch(`${base}/alexa/timer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ durationSeconds: 60, label: 'Kitchen test' }),
+              })
+                .then(async (response) => {
+                  const json = (await response.json()) as { message?: string };
+                  setEchoTest(json.message || 'No response from the worker.');
+                })
+                .catch(() => setEchoTest('Could not reach the API worker.'));
+            }}
+          >
+            Test Echo in 1 minute
+          </button>
+          {(echoTest || alexaNote) && <p className="mt-2 text-sm text-clay-deep">{echoTest || alexaNote}</p>}
         </div>
       </div>
     </section>
