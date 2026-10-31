@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Our Home</string>
+    <string name="title_activity_main">Our Home</string>
+    <string name="package_name">com.ourhome.dashboard</string>
+    <string name="custom_url_scheme">com.ourhome.dashboard</string>
+</resources>

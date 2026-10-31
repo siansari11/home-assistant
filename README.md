@@ -29,16 +29,60 @@ Pushes to `main` run `.github/workflows/pages.yml`, which builds the app and:
 
 The repository is public, which free GitHub Pages requires. Do not edit the root `index.html` by hand; change `web/` and let the workflow publish the build.
 
+## Android app 1.0.0
+
+versionCode **1**, versionName **1.0.0**. This is a free [Capacitor](https://capacitorjs.com/) wrapper (`com.ourhome.dashboard`, display name Our Home). It does not use the Play Store or any paid service.
+
+The app opens [https://siansari11.github.io/home-assistant/](https://siansari11.github.io/home-assistant/), so a Pages deploy updates the kitchen without a new APK. If that page cannot load, a local offline screen offers **Try again**. After one successful visit, the site’s service worker can open the saved dashboard without a connection.
+
+Kitchen behavior, already in the APK:
+
+- Landscape either way (`sensorLandscape`). For a portrait mount, change `android:screenOrientation` in `android/app/src/main/AndroidManifest.xml` to `fullSensor`.
+- The screen stays on.
+- Status and navigation bars hide. Swipe in from the edge to show them for a moment.
+- Our Home can be chosen as the tablet’s home app.
+
+### Build a debug APK
+
+Use a free JDK 21 and the Android SDK. Android Studio includes both.
+
+```bash
+npm install
+npm run android:debug
+```
+
+The same steps by hand:
+
+```bash
+npm install
+npm run build
+npx cap sync android
+cd android
+./gradlew assembleDebug
+```
+
+Android Studio: **File → Open** the `android/` folder, then **Build → Build APK(s)**.
+
+The APK is written to:
+
+`android/app/build/outputs/apk/debug/app-debug.apk`
+
+`.github/workflows/android-debug.yml` runs that debug build on GitHub Actions. When the run is green, download the `our-home-debug` artifact. That file is the same debug APK.
+
+### Install on the tablet
+
+1. Copy the APK onto the tablet.
+2. Settings → Security, or Apps → Special app access → **Install unknown apps**. Allow it for Files or Chrome.
+3. Open the APK and install. No Play Store account is required.
+4. Optional kiosk: Settings → Apps → Default apps → **Home app** → Our Home.
+5. To leave that mode, swipe in from the edge, open Settings, and choose the previous home app.
+6. Screen pinning is the other option: open Our Home, open the overview, and pin it. The tablet shows the unpin gesture.
+
 ## Kiosk
 
-The tablet opens on a lock screen. Tap anywhere to wake. After three minutes without a touch, it locks again. A running or finished kitchen timer keeps the screen awake and is still visible on the lock screen.
+The dashboard opens on a lock screen. Tap anywhere to wake. After three minutes without a touch, it locks again. A running or finished kitchen timer keeps the screen awake and is still visible on the lock screen.
 
-Android tablet:
-
-1. Open the Pages URL in Chrome.
-2. Install the app (Chrome menu → Install app / Add to Home screen), or open it in Fully Kiosk Browser.
-3. Start URL: `https://siansari11.github.io/home-assistant/`
-4. Turn on fullscreen, keep the screen awake, and hide the status and navigation bars.
+The Android app above is the always-on kitchen install. A browser works too: open the Pages URL in Chrome and use **Install app**, or use Fully Kiosk Browser with start URL `https://siansari11.github.io/home-assistant/`.
 
 Desktop Chrome, for a spare laptop on the counter:
 
