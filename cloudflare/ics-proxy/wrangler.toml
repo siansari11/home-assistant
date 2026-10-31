@@ -1,0 +1,9 @@
+name = "our-home-ics"
+main = "src/index.js"
+compatibility_date = "2026-10-31"
+
+# Free deploy:
+#   cd cloudflare/ics-proxy
+#   npx wrangler login
+#   npx wrangler deploy
+# Then paste https://our-home-ics.<account>.workers.dev into House → Calendars.

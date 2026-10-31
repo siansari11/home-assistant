@@ -92,18 +92,13 @@ google-chrome --kiosk https://siansari11.github.io/home-assistant/
 
 ## Calendar sync
 
-Each person keeps their own secret iCal address. On the tablet, open **House** and paste the links. They are stored only in this browser.
+Google’s secret iCal address does not send CORS headers, so the tablet cannot download it directly. Public proxies (`corsproxy.io`, `allorigins.win`) time out or refuse the request. House therefore has two ways to load Sehrish and André.
 
-Google Calendar:
+**File, no proxy.** On a computer, open Google Calendar → Settings → the calendar → **Integrate calendar**. Use **Export** (or save the secret iCal link once, while the browser is allowed to download it) so you have a `.ics` file. On the tablet, open **House**, choose that file for Sehrish or André, or paste the file text and tap **Load pasted calendar**. Events stay in this browser. Repeat for the other person.
 
-1. Calendar → Settings and sharing → the calendar → **Integrate calendar**.
-2. Copy **Secret address in iCal format**.
-3. Paste it into Sehrish or André on the House screen.
-4. Tap **Sync now**.
+**Automatic link sync.** Deploy the free worker in `cloudflare/ics-proxy` (`npx wrangler login` then `npx wrangler deploy`). Paste `https://our-home-ics.<account>.workers.dev` into **Calendar proxy URL** on House. Then paste each secret iCal link and tap **Sync now**. The app calls that worker first (28s timeout) and skips hosts that already failed. `VITE_ICS_PROXY` can set the same URL at build time; the settings field overrides it and defaults to empty.
 
-Apple Calendar and other apps can export an `https` or `webcal` link. `webcal://` is fetched as `https://`.
-
-Browsers often block a direct calendar download (CORS). The app tries the link itself, then a public CORS proxy. The first successful copy is cached on the tablet, so the week still shows if the network drops later. Sync again from Calendar or House when you want a fresh copy. Recurring events with daily, weekly, monthly, and yearly rules are expanded for about the next 45 days.
+A timed-out fetch says to try the proxy or paste the `.ics` file. A browser block says the same. The last good copy stays on the tablet. Recurring events are expanded for about the next 45 days.
 
 Meals, chores, the shopping list, and the kitchen timer are device-local as well. Nothing in this repo is a server.
 

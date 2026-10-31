@@ -22,7 +22,7 @@ export function createDefaultStore(): Store {
     meals: seedMeals(),
     chores: seedChores(),
     shopping: seedShopping(),
-    settings: { calendars: { sehrish: '', andre: '' } },
+    settings: { calendars: { sehrish: '', andre: '' }, icsProxy: '' },
     calendarCache: EMPTY_CALENDAR,
   };
 }
@@ -47,6 +47,7 @@ function hydrate(raw: unknown): Store {
         sehrish: typeof calendars.sehrish === 'string' ? calendars.sehrish : '',
         andre: typeof calendars.andre === 'string' ? calendars.andre : '',
       },
+      icsProxy: typeof settings.icsProxy === 'string' ? settings.icsProxy : '',
     },
     calendarCache: {
       fetchedAt: typeof cache.fetchedAt === 'number' ? cache.fetchedAt : null,

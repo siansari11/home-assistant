@@ -3,7 +3,7 @@ import { NavBar } from './components/NavBar';
 import { LockIcon, WeatherGlyph } from './components/Icons';
 import { playChime } from './lib/beep';
 import { formatClock, todayIso } from './lib/dates';
-import { fetchIcs, normalizeCalendarUrl, parseIcs } from './lib/ics';
+import { configuredProxy, fetchIcs, normalizeCalendarUrl, parseIcs } from './lib/ics';
 import { loadStore, loadTimer, saveStore, saveTimer } from './lib/storage';
 import { loadWeather, weatherLabel } from './lib/weather';
 import { CalendarScreen } from './screens/CalendarScreen';
@@ -116,33 +116,66 @@ export function App() {
     };
   }, [locked, timer.status]);
 
+  const calendarWindow = () => ({
+    rangeStart: new Date(Date.now() - 86400000),
+    rangeEnd: new Date(Date.now() + 45 * 86400000),
+  });
+
   const sync = useCallback(async () => {
     const current = storeRef.current;
     const urls = current.settings.calendars;
     if (!urls.sehrish && !urls.andre) return;
     setSyncing(true);
-    const rangeStart = new Date(Date.now() - 86400000);
-    const rangeEnd = new Date(Date.now() + 45 * 86400000);
-    const errors: CalendarCache['errors'] = {};
-    const events: CalendarCache['events'] = [];
-    for (const person of ['sehrish', 'andre'] as PersonId[]) {
-      const url = normalizeCalendarUrl(urls[person]);
-      if (!url) continue;
-      try {
-        const text = await fetchIcs(url);
-        events.push(...parseIcs(text, person, rangeStart, rangeEnd));
-      } catch (error) {
-        errors[person] = error instanceof Error ? error.message : 'Sync failed';
-        events.push(...current.calendarCache.events.filter((event) => event.person === person));
+    try {
+      const { rangeStart, rangeEnd } = calendarWindow();
+      const proxy = configuredProxy(current.settings.icsProxy);
+      const errors: CalendarCache['errors'] = {};
+      const events: CalendarCache['events'] = [];
+      for (const person of ['sehrish', 'andre'] as PersonId[]) {
+        const url = normalizeCalendarUrl(urls[person]);
+        if (!url) {
+          events.push(...current.calendarCache.events.filter((event) => event.person === person));
+          continue;
+        }
+        try {
+          const text = await fetchIcs(url, proxy);
+          events.push(...parseIcs(text, person, rangeStart, rangeEnd));
+        } catch (error) {
+          errors[person] = error instanceof Error ? error.message : 'Sync failed';
+          events.push(...current.calendarCache.events.filter((event) => event.person === person));
+        }
       }
+      events.sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title));
+      updateStore((latest) => ({
+        ...latest,
+        calendarCache: { fetchedAt: Date.now(), events, errors },
+      }));
+    } finally {
+      setSyncing(false);
     }
-    events.sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title));
-    updateStore((latest) => ({
-      ...latest,
-      calendarCache: { fetchedAt: Date.now(), events, errors },
-    }));
-    setSyncing(false);
   }, [updateStore]);
+
+  const importCalendar = useCallback(
+    (person: PersonId, text: string) => {
+      if (!text.includes('BEGIN:VCALENDAR')) {
+        throw new Error('That is not a calendar file. In Google Calendar use Settings → Integrate calendar → Export, or download the secret iCal link.');
+      }
+      const { rangeStart, rangeEnd } = calendarWindow();
+      const parsed = parseIcs(text, person, rangeStart, rangeEnd);
+      updateStore((latest) => {
+        const errors = { ...latest.calendarCache.errors };
+        delete errors[person];
+        const events = [...latest.calendarCache.events.filter((event) => event.person !== person), ...parsed];
+        events.sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title));
+        return {
+          ...latest,
+          calendarCache: { fetchedAt: Date.now(), events, errors },
+        };
+      });
+      return parsed.length;
+    },
+    [updateStore],
+  );
 
   useEffect(() => {
     if (locked) return;
@@ -204,7 +237,11 @@ export function App() {
               onTimer={setTimer}
               onArmAudio={armAudio}
               onShopping={(shopping) => updateStore((current) => ({ ...current, shopping }))}
-              onCalendars={(calendars) => updateStore((current) => ({ ...current, settings: { calendars } }))}
+              onCalendars={(calendars) =>
+                updateStore((current) => ({ ...current, settings: { ...current.settings, calendars } }))
+              }
+              onProxy={(icsProxy) => updateStore((current) => ({ ...current, settings: { ...current.settings, icsProxy } }))}
+              onImport={importCalendar}
               onSync={() => void sync()}
             />
           )}

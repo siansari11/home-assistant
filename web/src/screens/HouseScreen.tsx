@@ -25,6 +25,8 @@ export function HouseScreen({
   onArmAudio,
   onShopping,
   onCalendars,
+  onProxy,
+  onImport,
   onSync,
 }: {
   store: Store;
@@ -34,10 +36,14 @@ export function HouseScreen({
   onArmAudio: () => void;
   onShopping: (items: ShoppingItem[]) => void;
   onCalendars: (calendars: Store['settings']['calendars']) => void;
+  onProxy: (proxyUrl: string) => void;
+  onImport: (person: PersonId, text: string) => number;
   onSync: () => void;
 }) {
   const [draft, setDraft] = useState('');
   const [minutes, setMinutes] = useState(10);
+  const [pasted, setPasted] = useState<Record<PersonId, string>>({ sehrish: '', andre: '' });
+  const [importNote, setImportNote] = useState<Partial<Record<PersonId, string>>>({});
   const progress = timer.durationMs > 0 ? Math.min(1, Math.max(0, timer.remainingMs / timer.durationMs)) : 0;
   const ring = 2 * Math.PI * 42;
 
@@ -223,28 +229,96 @@ export function HouseScreen({
           <div>
             <h2 className="font-serif text-2xl">Calendars</h2>
             <p className="mt-1 max-w-2xl text-sm text-muted">
-              Paste a secret iCal address for each person. Links stay in this browser only. webcal links are fetched as https.
+              Google blocks the browser from downloading a secret iCal link. Load an exported .ics file here — that needs no proxy. A Cloudflare worker URL is optional and is tried before any public proxy.
             </p>
           </div>
           <button type="button" onClick={onSync} disabled={syncing} className="rounded-full bg-ink px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             {syncing ? 'Syncing…' : 'Sync now'}
           </button>
         </div>
+        <label className="mt-4 block">
+          <span className="text-sm font-medium">Calendar proxy URL</span>
+          <input
+            type="url"
+            inputMode="url"
+            value={store.settings.icsProxy}
+            placeholder="https://our-home-ics.account.workers.dev"
+            onChange={(event) => onProxy(event.target.value)}
+            onBlur={(event) => onProxy(event.target.value.trim())}
+            className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base outline-none focus:border-sage"
+          />
+          <span className="mt-1 block text-sm text-muted">Leave empty unless you have deployed cloudflare/ics-proxy. File import works with this blank.</span>
+        </label>
         <div className="mt-4 grid gap-3 min-[900px]:grid-cols-2">
           {(['sehrish', 'andre'] as PersonId[]).map((person) => (
-            <label key={person} className="block">
-              <span className="text-sm font-medium">{PEOPLE[person].name}</span>
-              <input
-                type="url"
-                inputMode="url"
-                value={store.settings.calendars[person]}
-                placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
-                onChange={(event) => onCalendars({ ...store.settings.calendars, [person]: event.target.value })}
-                onBlur={(event) => onCalendars({ ...store.settings.calendars, [person]: normalizeCalendarUrl(event.target.value) })}
-                className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base outline-none focus:border-sage"
+            <div key={person} className="rounded-2xl bg-paper p-3">
+              <label className="block">
+                <span className="text-sm font-medium">{PEOPLE[person].name} iCal link</span>
+                <input
+                  type="url"
+                  inputMode="url"
+                  value={store.settings.calendars[person]}
+                  placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
+                  onChange={(event) => onCalendars({ ...store.settings.calendars, [person]: event.target.value })}
+                  onBlur={(event) => onCalendars({ ...store.settings.calendars, [person]: normalizeCalendarUrl(event.target.value) })}
+                  className="mt-1 w-full rounded-xl border border-line bg-card px-3 py-2 text-base outline-none focus:border-sage"
+                />
+              </label>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <label className="rounded-full border border-line bg-card px-3 py-2 text-sm">
+                  Choose .ics
+                  <input
+                    type="file"
+                    accept=".ics,text/calendar,text/plain"
+                    className="sr-only"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = '';
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        try {
+                          const count = onImport(person, String(reader.result || ''));
+                          setImportNote((notes) => ({ ...notes, [person]: `Loaded ${count} events from ${file.name}.` }));
+                        } catch (error) {
+                          setImportNote((notes) => ({
+                            ...notes,
+                            [person]: error instanceof Error ? error.message : 'Could not read that file.',
+                          }));
+                        }
+                      };
+                      reader.readAsText(file);
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="rounded-full bg-sage px-3 py-2 text-sm font-medium text-white"
+                  onClick={() => {
+                    try {
+                      const count = onImport(person, pasted[person]);
+                      setImportNote((notes) => ({ ...notes, [person]: `Loaded ${count} events from pasted text.` }));
+                    } catch (error) {
+                      setImportNote((notes) => ({
+                        ...notes,
+                        [person]: error instanceof Error ? error.message : 'Could not read that calendar.',
+                      }));
+                    }
+                  }}
+                >
+                  Load pasted calendar
+                </button>
+              </div>
+              <textarea
+                value={pasted[person]}
+                onChange={(event) => setPasted((current) => ({ ...current, [person]: event.target.value }))}
+                placeholder="Or paste the .ics text, starting with BEGIN:VCALENDAR"
+                rows={4}
+                className="mt-2 w-full rounded-xl border border-line bg-card px-3 py-2 text-base outline-none focus:border-sage"
               />
-              {store.calendarCache.errors[person] && <span className="mt-1 block text-sm text-clay-deep">{store.calendarCache.errors[person]}</span>}
-            </label>
+              {importNote[person] && <p className="mt-2 text-sm text-sage-deep">{importNote[person]}</p>}
+              {store.calendarCache.errors[person] && <p className="mt-2 text-sm text-clay-deep">{store.calendarCache.errors[person]}</p>}
+            </div>
           ))}
         </div>
         <p className="mt-3 text-sm text-muted">

@@ -263,30 +263,175 @@ export function normalizeCalendarUrl(value: string): string {
   return trimmed;
 }
 
-export async function fetchIcs(url: string): Promise<string> {
+const FETCH_TIMEOUT_MS = 28_000;
+const DIRECT_TIMEOUT_MS = 10_000;
+const BROKEN_FOR_MS = 6 * 60 * 60 * 1000;
+const BROKEN_KEY = 'our-home.ics-broken-hosts';
+
+/** Public proxies that currently fail (401 or gateway timeout) and must not block sync. */
+const SKIP_PUBLIC_HOSTS = new Set(['corsproxy.io', 'api.allorigins.win', 'api.codetabs.com']);
+
+const PUBLIC_PROXIES: Array<(url: string) => string> = [
+  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+];
+
+type AttemptFailure = { timedOut: boolean; cors: boolean; message: string };
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return '';
+  }
+}
+
+function readBrokenHosts(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(BROKEN_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, number>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function brokenHost(url: string): boolean {
+  const host = hostOf(url);
+  if (!host || SKIP_PUBLIC_HOSTS.has(host)) return true;
+  const until = readBrokenHosts()[host] ?? 0;
+  return until > Date.now();
+}
+
+function markBroken(url: string): void {
+  const host = hostOf(url);
+  if (!host) return;
+  const next = readBrokenHosts();
+  next[host] = Date.now() + BROKEN_FOR_MS;
+  try {
+    localStorage.setItem(BROKEN_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+export function configuredProxy(stored: string | undefined): string {
+  const fromSettings = (stored ?? '').trim();
+  if (fromSettings) return fromSettings;
+  return (import.meta.env.VITE_ICS_PROXY ?? '').trim();
+}
+
+export function proxyRequestUrl(proxyBase: string, icsUrl: string): string {
+  const base = proxyBase.trim();
+  const endpoint = new URL(base.includes('://') ? base : `https://${base}`);
+  endpoint.searchParams.set('url', icsUrl);
+  return endpoint.toString();
+}
+
+function isTimeout(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const name = 'name' in error ? String(error.name) : '';
+  const message = 'message' in error ? String(error.message) : '';
+  return name === 'TimeoutError' || name === 'AbortError' || /timed out|signal timed out|aborted due to timeout/i.test(message);
+}
+
+function isCors(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : '';
+  return /failed to fetch|networkerror|load failed|cors/i.test(message);
+}
+
+async function readCalendar(url: string, timeoutMs: number): Promise<string> {
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(timeoutMs),
+    headers: { Accept: 'text/calendar, text/plain, */*' },
+  });
+  if (!response.ok) {
+    throw new Error(`Calendar responded ${response.status}.`);
+  }
+  const text = await response.text();
+  if (!text.includes('BEGIN:VCALENDAR')) {
+    throw new Error('That link did not return a calendar.');
+  }
+  return text;
+}
+
+function failureMessage(failures: AttemptFailure[], usedProxy: boolean): string {
+  if (failures.some((failure) => failure.timedOut)) {
+    return usedProxy
+      ? 'Timed out fetching the calendar — the proxy did not answer. Paste the .ics file on this screen.'
+      : 'Timed out fetching the calendar — try the proxy, or paste the .ics file on this screen.';
+  }
+  if (failures.some((failure) => failure.cors) || !usedProxy) {
+    return 'The browser blocked this calendar link. Paste the .ics file on this screen, or set your Cloudflare proxy URL below.';
+  }
+  return failures.at(-1)?.message || 'Could not download the calendar. Paste the .ics file on this screen.';
+}
+
+export async function fetchIcs(url: string, proxyUrl = ''): Promise<string> {
   const normalized = normalizeCalendarUrl(url);
   if (!/^https?:\/\//i.test(normalized)) {
-    throw new Error('Use an https or webcal link.');
+    throw new Error('Use an https or webcal link, or paste the .ics file.');
   }
-  const attempts = [
-    normalized,
-    `https://corsproxy.io/?${encodeURIComponent(normalized)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(normalized)}`,
-  ];
-  let lastError = 'Could not download the calendar.';
-  for (const attempt of attempts) {
+
+  const failures: AttemptFailure[] = [];
+  try {
+    return await readCalendar(normalized, DIRECT_TIMEOUT_MS);
+  } catch (error) {
+    failures.push({
+      timedOut: isTimeout(error),
+      cors: isCors(error),
+      message: error instanceof Error ? error.message : 'Could not download the calendar.',
+    });
+  }
+
+  const owned = proxyUrl.trim();
+  if (owned) {
+    let viaProxy = '';
     try {
-      const response = await fetch(attempt, { signal: AbortSignal.timeout(12000) });
-      if (!response.ok) {
-        lastError = `Calendar responded ${response.status}.`;
-        continue;
+      viaProxy = proxyRequestUrl(owned, normalized);
+    } catch {
+      failures.push({ timedOut: false, cors: false, message: 'The proxy URL is not a valid https address.' });
+    }
+    if (viaProxy && !brokenHost(viaProxy)) {
+      try {
+        return await readCalendar(viaProxy, FETCH_TIMEOUT_MS);
+      } catch (error) {
+        if (isTimeout(error) || (error instanceof Error && /responded 5/.test(error.message))) markBroken(viaProxy);
+        failures.push({
+          timedOut: isTimeout(error),
+          cors: isCors(error),
+          message: error instanceof Error ? error.message : 'Proxy failed.',
+        });
       }
-      const text = await response.text();
-      if (text.includes('BEGIN:VCALENDAR')) return text;
-      lastError = 'That link did not return a calendar.';
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : lastError;
     }
   }
-  throw new Error(lastError);
+
+  const pending: Array<Promise<string>> = [];
+  for (const make of PUBLIC_PROXIES) {
+    const attempt = make(normalized);
+    if (brokenHost(attempt)) continue;
+    pending.push(
+      readCalendar(attempt, FETCH_TIMEOUT_MS).catch((error: unknown) => {
+        if (isTimeout(error) || (error instanceof Error && /responded 5|responded 401|did not return/.test(error.message))) {
+          markBroken(attempt);
+        }
+        failures.push({
+          timedOut: isTimeout(error),
+          cors: isCors(error),
+          message: error instanceof Error ? error.message : 'Public proxy failed.',
+        });
+        throw error;
+      }),
+    );
+  }
+  if (pending.length) {
+    try {
+      return await Promise.any(pending);
+    } catch {
+      /* failures already recorded */
+    }
+  }
+
+  throw new Error(failureMessage(failures, Boolean(owned)));
 }

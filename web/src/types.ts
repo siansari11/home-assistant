@@ -53,6 +53,8 @@ export type Store = {
   shopping: ShoppingItem[];
   settings: {
     calendars: Record<PersonId, string>;
+    /** Cloudflare ICS proxy base URL. Empty uses VITE_ICS_PROXY, which defaults to empty. */
+    icsProxy: string;
   };
   calendarCache: CalendarCache;
 };
