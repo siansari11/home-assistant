@@ -90,7 +90,13 @@ Desktop Chrome, for a spare laptop on the counter:
 google-chrome --kiosk https://siansari11.github.io/home-assistant/
 ```
 
+## Hear the timer in another room
+
+No Amazon or Spotify account. The kitchen tablet starts the timer. A phone in the living room keeps Our Home open on the alarm link from **House → Hear it in another room**. When the timer hits zero, every joined phone and tablet rings until someone taps **Dismiss** on any of them. Allow alerts on the phone so it can buzz if the browser is in the background. Same-browser tabs also share the alarm instantly.
+
 ## Connections
+
+Spotify and Alexa are optional and need developer accounts. The household alarm link does not.
 
 House → **Connections**. Music goes to an Echo through Spotify Connect. Alexa is only for timers.
 

@@ -3,6 +3,7 @@ import type { PersonId, ShoppingItem, Store, TimerState } from '../types';
 import { PEOPLE } from '../data/content';
 import { formatTime } from '../lib/dates';
 import { normalizeCalendarUrl } from '../lib/ics';
+import { AlarmLinkCard } from '../components/AlarmLinkCard';
 import { ConnectionsCard } from '../components/ConnectionsCard';
 
 const PRESETS = [1, 5, 10, 15, 25, 45];
@@ -67,7 +68,13 @@ export function HouseScreen({
         <p className="text-sm font-medium uppercase tracking-[0.16em] text-sage">House</p>
         <h1 className="font-serif text-4xl text-ink">Kitchen and lists</h1>
       </header>
-      <ConnectionsCard store={store} refreshKey={spotifyRefresh} loginError={spotifyError} alexaNote={alexaNote} onPatch={onPatchSettings} />
+      <AlarmLinkCard />
+      <details className="rounded-3xl border border-line bg-card p-5">
+        <summary className="cursor-pointer text-sm font-medium text-muted">Optional: Spotify and Alexa (developer accounts)</summary>
+        <div className="mt-4">
+          <ConnectionsCard store={store} refreshKey={spotifyRefresh} loginError={spotifyError} alexaNote={alexaNote} onPatch={onPatchSettings} />
+        </div>
+      </details>
       <div className="grid gap-3 min-[900px]:grid-cols-2">
         <section className="rounded-3xl border border-line bg-card p-5 shadow-card">
           <h2 className="font-serif text-2xl">Kitchen timer</h2>

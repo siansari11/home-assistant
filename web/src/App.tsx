@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavBar } from './components/NavBar';
 import { LockIcon, WeatherGlyph } from './components/Icons';
+import { adoptJoinCode, notifyAlarm, publishSignal, subscribeSignals, thisDeviceId } from './lib/alarm-link';
 import { playChime } from './lib/beep';
 import { formatClock, todayIso } from './lib/dates';
 import { configuredProxy, fetchIcs, normalizeCalendarUrl, parseIcs } from './lib/ics';
@@ -42,6 +43,7 @@ export function App() {
   const [spotifyError, setSpotifyError] = useState('');
   const [alexaNote, setAlexaNote] = useState('');
   const audioRef = useRef<AudioContext | null>(null);
+  const remoteAlarm = useRef(false);
   const storeRef = useRef(store);
   storeRef.current = store;
 
@@ -170,14 +172,47 @@ export function App() {
     };
   }, [timer.status]);
 
-  const dismissTimer = useCallback(() => {
-    setTimer((current) => ({
-      ...current,
-      status: 'idle',
-      remainingMs: current.durationMs > 0 ? current.durationMs : 10 * 60 * 1000,
-      endsAt: null,
-    }));
+  const dismissTimer = useCallback((fromRemote = false) => {
+    setTimer((current) => {
+      if (current.status !== 'done') return current;
+      return {
+        ...current,
+        status: 'idle',
+        remainingMs: current.durationMs > 0 ? current.durationMs : 10 * 60 * 1000,
+        endsAt: null,
+      };
+    });
+    if (!fromRemote) {
+      publishSignal({ event: 'dismiss', id: crypto.randomUUID(), label: '', from: thisDeviceId() });
+    }
   }, [setTimer]);
+
+  useEffect(() => {
+    adoptJoinCode();
+    return subscribeSignals((signal) => {
+      if (signal.from === thisDeviceId()) return;
+      if (signal.event === 'dismiss') {
+        dismissTimer(true);
+        return;
+      }
+      setTimer((current) => {
+        if (current.status === 'done') return current;
+        remoteAlarm.current = true;
+        return { ...current, status: 'done', remainingMs: 0, endsAt: null, label: signal.label || current.label };
+      });
+      notifyAlarm(signal.label);
+    });
+  }, [dismissTimer, setTimer]);
+
+  useEffect(() => {
+    if (timer.status !== 'done') return;
+    if (remoteAlarm.current) {
+      remoteAlarm.current = false;
+      return;
+    }
+    publishSignal({ event: 'alarm', id: crypto.randomUUID(), label: timer.label, from: thisDeviceId() });
+    notifyAlarm(timer.label);
+  }, [timer.status, timer.label]);
 
   useEffect(() => {
     if (locked || timer.status === 'running' || timer.status === 'done') return;
