@@ -19,8 +19,9 @@ export function ChoresScreen({
   const [cadence, setCadence] = useState<'daily' | 'weekly'>('weekly');
   const [weekday, setWeekday] = useState(() => isoWeekday(todayIso()));
 
-  const todayChores = store.chores.filter((chore) => isDueToday(chore, today));
-  const later = store.chores.filter((chore) => !isDueToday(chore, today));
+  const visible = store.chores.filter((chore) => !chore.deletedAt);
+  const todayChores = visible.filter((chore) => isDueToday(chore, today));
+  const later = visible.filter((chore) => !isDueToday(chore, today));
 
   const add = () => {
     const name = title.trim();
@@ -32,6 +33,7 @@ export function ChoresScreen({
       cadence,
       weekday: cadence === 'weekly' ? weekday : 0,
       completedOn: [],
+      updatedAt: Date.now(),
     };
     onChange([...store.chores, chore]);
     setTitle('');
@@ -132,7 +134,7 @@ function ChoreColumn({
               <button
                 type="button"
                 aria-label={`Remove ${chore.title}`}
-                onClick={() => onChange(all.filter((item) => item.id !== chore.id))}
+                onClick={() => onChange(all.map((item) => (item.id === chore.id ? { ...item, deletedAt: Date.now(), updatedAt: Date.now() } : item)))}
                 className="text-sm text-muted"
               >
                 Remove

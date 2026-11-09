@@ -2,7 +2,7 @@ export type PersonId = 'sehrish' | 'andre';
 
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner';
 
-export type ScreenId = 'home' | 'calendar' | 'meals' | 'chores' | 'house';
+export type ScreenId = 'home' | 'calendar' | 'meals' | 'chores' | 'tasks' | 'house';
 
 export type Chore = {
   id: string;
@@ -12,12 +12,43 @@ export type Chore = {
   /** 0 Sunday … 6 Saturday. Used when cadence is weekly. */
   weekday: number;
   completedOn: string[];
+  updatedAt?: number;
+  deletedAt?: number;
 };
 
 export type ShoppingItem = {
   id: string;
   name: string;
   done: boolean;
+  updatedAt?: number;
+  deletedAt?: number;
+};
+
+export type TaskStatus = 'waiting' | 'in_progress' | 'done';
+
+export type Task = {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  nextStep: string;
+  dueDate: string | null;
+  updatedAt: number;
+  deletedAt?: number;
+  todoistId?: string;
+  todoistSyncedAt?: number;
+};
+
+export type ChecklistItem = {
+  id: string;
+  title: string;
+  done: boolean;
+  updatedAt: number;
+  deletedAt?: number;
+};
+
+export type StickyNote = {
+  text: string;
+  updatedAt: number;
 };
 
 export type TimerStatus = 'idle' | 'running' | 'paused' | 'done';
@@ -48,20 +79,16 @@ export type CalendarCache = {
 
 export type Store = {
   version: 1;
-  meals: Record<string, Partial<Record<MealSlot, string>>>;
+  meals: Record<string, Partial<Record<MealSlot, string>> & { updatedAt?: number }>;
   chores: Chore[];
   shopping: ShoppingItem[];
+  tasks: Task[];
+  note: StickyNote;
+  checklists: ChecklistItem[];
   settings: {
     calendars: Record<PersonId, string>;
     /** Cloudflare ICS proxy base URL. Empty uses VITE_ICS_PROXY, which defaults to empty. */
     icsProxy: string;
-    echoAlarm: boolean;
-    spotifyUrl: string;
-    spotifyClientId: string;
-    /** our-home-api worker origin, no trailing path. Empty uses direct Spotify PKCE. */
-    apiBase: string;
-    alexaSkillUrl: string;
-    ringOnAlexa: boolean;
   };
   calendarCache: CalendarCache;
 };

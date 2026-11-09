@@ -3,8 +3,7 @@ import type { PersonId, ShoppingItem, Store, TimerState } from '../types';
 import { PEOPLE } from '../data/content';
 import { formatTime } from '../lib/dates';
 import { normalizeCalendarUrl } from '../lib/ics';
-import { AlarmLinkCard } from '../components/AlarmLinkCard';
-import { ConnectionsCard } from '../components/ConnectionsCard';
+import { householdKey, saveHouseholdKey } from '../lib/sync';
 
 const PRESETS = [1, 5, 10, 15, 25, 45];
 
@@ -30,10 +29,10 @@ export function HouseScreen({
   onProxy,
   onImport,
   onSync,
-  spotifyRefresh,
-  spotifyError,
-  alexaNote,
-  onPatchSettings,
+  syncNote,
+  onTodoist,
+  onNote,
+  onChecklists,
 }: {
   store: Store;
   timer: TimerState;
@@ -45,15 +44,16 @@ export function HouseScreen({
   onProxy: (proxyUrl: string) => void;
   onImport: (person: PersonId, text: string) => number;
   onSync: () => void;
-  spotifyRefresh: number;
-  spotifyError: string;
-  alexaNote: string;
-  onPatchSettings: (partial: Partial<Store['settings']>) => void;
+  syncNote: string;
+  onTodoist: () => void;
+  onNote: (note: Store['note']) => void;
+  onChecklists: (items: Store['checklists']) => void;
 }) {
   const [draft, setDraft] = useState('');
   const [minutes, setMinutes] = useState(10);
   const [pasted, setPasted] = useState<Record<PersonId, string>>({ sehrish: '', andre: '' });
   const [importNote, setImportNote] = useState<Partial<Record<PersonId, string>>>({});
+  const [household, setHousehold] = useState(() => householdKey());
   const progress = timer.durationMs > 0 ? Math.min(1, Math.max(0, timer.remainingMs / timer.durationMs)) : 0;
   const ring = 2 * Math.PI * 42;
 
@@ -68,13 +68,50 @@ export function HouseScreen({
         <p className="text-sm font-medium uppercase tracking-[0.16em] text-sage">House</p>
         <h1 className="font-serif text-4xl text-ink">Kitchen and lists</h1>
       </header>
-      <AlarmLinkCard />
-      <details className="rounded-3xl border border-line bg-card p-5">
-        <summary className="cursor-pointer text-sm font-medium text-muted">Optional: Spotify and Alexa (developer accounts)</summary>
-        <div className="mt-4">
-          <ConnectionsCard store={store} refreshKey={spotifyRefresh} loginError={spotifyError} alexaNote={alexaNote} onPatch={onPatchSettings} />
-        </div>
-      </details>
+      <section className="rounded-3xl border border-line bg-card p-5">
+        <h2 className="font-serif text-2xl">Household</h2>
+        <p className="mt-1 text-sm text-muted">Enter the same code on the phone and the tablet. Edits then show on both within a few seconds. The code matches the worker secret HOUSEHOLD_KEY.</p>
+        <form
+          className="mt-3 flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            saveHouseholdKey(household);
+          }}
+        >
+          <input value={household} onChange={(event) => setHousehold(event.target.value)} placeholder="Household code" aria-label="Household code" className="min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 py-2 text-base outline-none focus:border-sage" />
+          <button type="submit" className="rounded-full bg-sage px-4 py-2 text-sm font-medium text-white">Save</button>
+        </form>
+        {syncNote && <p className="mt-2 text-sm text-muted">{syncNote}</p>}
+        <button type="button" onClick={onTodoist} className="mt-3 text-sm text-sage">Sync Todoist now</button>
+      </section>
+      <div className="grid gap-3 min-[900px]:grid-cols-2">
+        <label className="rounded-3xl border border-line bg-card p-5">
+          <span className="font-serif text-2xl">Sticky note</span>
+          <textarea
+            value={store.note.text}
+            onChange={(event) => onNote({ text: event.target.value, updatedAt: Date.now() })}
+            rows={4}
+            className="mt-3 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base outline-none focus:border-sage"
+          />
+        </label>
+        <section className="rounded-3xl border border-line bg-card p-5">
+          <h2 className="font-serif text-2xl">House checklist</h2>
+          <ul className="mt-3 space-y-2">
+            {store.checklists.filter((item) => !item.deletedAt).map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => onChecklists(store.checklists.map((row) => (row.id === item.id ? { ...row, done: !row.done, updatedAt: Date.now() } : row)))}
+                  className="flex w-full items-center gap-3 text-left"
+                >
+                  <span className={`grid h-8 w-8 place-items-center rounded-full border ${item.done ? 'border-sage bg-sage text-white' : 'border-line'}`}>{item.done ? '✓' : ''}</span>
+                  <span className={item.done ? 'text-muted line-through' : ''}>{item.title}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
       <div className="grid gap-3 min-[900px]:grid-cols-2">
         <section className="rounded-3xl border border-line bg-card p-5 shadow-card">
           <h2 className="font-serif text-2xl">Kitchen timer</h2>
@@ -204,7 +241,7 @@ export function HouseScreen({
               event.preventDefault();
               const name = draft.trim();
               if (!name) return;
-              onShopping([...store.shopping, { id: crypto.randomUUID(), name: name.slice(0, 80), done: false }]);
+              onShopping([...store.shopping, { id: crypto.randomUUID(), name: name.slice(0, 80), done: false, updatedAt: Date.now() }]);
               setDraft('');
             }}
           >
@@ -221,18 +258,18 @@ export function HouseScreen({
           </form>
           <ul className="mt-3 space-y-2">
             {store.shopping.length === 0 && <li className="text-sm text-muted">The list is empty.</li>}
-            {store.shopping.map((item) => (
+            {store.shopping.filter((item) => !item.deletedAt).map((item) => (
               <li key={item.id} className="flex items-center gap-3">
                 <button
                   type="button"
                   aria-pressed={item.done}
-                  onClick={() => onShopping(store.shopping.map((row) => (row.id === item.id ? { ...row, done: !row.done } : row)))}
+                  onClick={() => onShopping(store.shopping.map((row) => (row.id === item.id ? { ...row, done: !row.done, updatedAt: Date.now() } : row)))}
                   className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border ${item.done ? 'border-sage bg-sage text-white' : 'border-line'}`}
                 >
                   {item.done ? '✓' : ''}
                 </button>
                 <span className={`flex-1 ${item.done ? 'text-muted line-through' : ''}`}>{item.name}</span>
-                <button type="button" aria-label={`Remove ${item.name}`} className="text-sm text-muted" onClick={() => onShopping(store.shopping.filter((row) => row.id !== item.id))}>
+                <button type="button" aria-label={`Remove ${item.name}`} className="text-sm text-muted" onClick={() => onShopping(store.shopping.map((row) => (row.id === item.id ? { ...row, deletedAt: Date.now(), updatedAt: Date.now() } : row)))}>
                   Remove
                 </button>
               </li>

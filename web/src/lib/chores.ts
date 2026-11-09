@@ -13,13 +13,13 @@ export function toggleChore(chore: Chore, today: string): Chore {
     const completedOn = done
       ? chore.completedOn.filter((date) => date !== today)
       : [...chore.completedOn, today].slice(-90);
-    return { ...chore, completedOn };
+    return { ...chore, completedOn, updatedAt: Date.now() };
   }
   const week = isoWeekKey(today);
   const completedOn = done
     ? chore.completedOn.filter((date) => isoWeekKey(date) !== week)
     : [...chore.completedOn, today].slice(-90);
-  return { ...chore, completedOn };
+  return { ...chore, completedOn, updatedAt: Date.now() };
 }
 
 export function isDueToday(chore: Chore, today: string): boolean {

@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavBar } from './components/NavBar';
 import { LockIcon, WeatherGlyph } from './components/Icons';
-import { adoptJoinCode, notifyAlarm, publishSignal, subscribeSignals, thisDeviceId } from './lib/alarm-link';
 import { playChime } from './lib/beep';
 import { formatClock, todayIso } from './lib/dates';
 import { configuredProxy, fetchIcs, normalizeCalendarUrl, parseIcs } from './lib/ics';
-import { completeSpotifyLogin } from './lib/spotify';
 import { loadStore, loadTimer, saveStore, saveTimer } from './lib/storage';
+import { docFromStore, householdKey, mergeDocs, pullState, pushState, syncTodoist } from './lib/sync';
 import { loadWeather, weatherLabel } from './lib/weather';
 import { CalendarScreen } from './screens/CalendarScreen';
 import { ChoresScreen } from './screens/ChoresScreen';
@@ -14,6 +13,7 @@ import { HomeScreen } from './screens/HomeScreen';
 import { HouseScreen } from './screens/HouseScreen';
 import { LockScreen } from './screens/LockScreen';
 import { MealsScreen } from './screens/MealsScreen';
+import { TasksScreen } from './screens/TasksScreen';
 import type { CalendarCache, PersonId, ScreenId, Store, TimerState, WeatherReport } from './types';
 
 const IDLE_MS = 3 * 60 * 1000;
@@ -39,11 +39,10 @@ export function App() {
   const [now, setNow] = useState(() => new Date());
   const [weather, setWeather] = useState<WeatherReport | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [spotifyRefresh, setSpotifyRefresh] = useState(0);
-  const [spotifyError, setSpotifyError] = useState('');
-  const [alexaNote, setAlexaNote] = useState('');
+  const [syncNote, setSyncNote] = useState('');
+  const [todoistBusy, setTodoistBusy] = useState(false);
   const audioRef = useRef<AudioContext | null>(null);
-  const remoteAlarm = useRef(false);
+  const pushTimer = useRef<number | null>(null);
   const storeRef = useRef(store);
   storeRef.current = store;
 
@@ -51,6 +50,22 @@ export function App() {
     setStore((current) => {
       const next = patch(current);
       saveStore(next);
+      storeRef.current = next;
+      if (pushTimer.current) window.clearTimeout(pushTimer.current);
+      pushTimer.current = window.setTimeout(() => {
+        const key = householdKey();
+        if (!key) return;
+        void pushState(key, docFromStore(storeRef.current))
+          .then((remote) => {
+            if (!remote) return;
+            setStore((latest) => {
+              const merged = { ...latest, ...mergeDocs(docFromStore(latest), remote) };
+              saveStore(merged);
+              return merged;
+            });
+          })
+          .catch((error: unknown) => setSyncNote(error instanceof Error ? error.message : 'Sync failed.'));
+      }, 400);
       return next;
     });
   }, []);
@@ -70,45 +85,26 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    const state = params.get('state');
-    if (!code || !state) return;
-    const settings = storeRef.current.settings;
-    void completeSpotifyLogin(code, state, settings.spotifyClientId, settings.apiBase)
-      .then(() => setSpotifyRefresh((value) => value + 1))
-      .catch((error: unknown) => setSpotifyError(error instanceof Error ? error.message : 'Spotify login failed.'))
-      .finally(() => {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('code');
-        url.searchParams.delete('state');
-        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
-      });
+    const pull = () => {
+      const key = householdKey();
+      if (!key) return;
+      void pullState(key)
+        .then((remote) => {
+          if (!remote) return;
+          setStore((latest) => {
+            const merged = { ...latest, ...mergeDocs(docFromStore(latest), remote) };
+            saveStore(merged);
+            storeRef.current = merged;
+            return merged;
+          });
+          setSyncNote('');
+        })
+        .catch((error: unknown) => setSyncNote(error instanceof Error ? error.message : 'Sync failed.'));
+    };
+    pull();
+    const id = window.setInterval(pull, 5000);
+    return () => window.clearInterval(id);
   }, []);
-
-  useEffect(() => {
-    if (timer.status !== 'running' || !timer.endsAt) return;
-    const settings = storeRef.current.settings;
-    if (!settings.ringOnAlexa) return;
-    if (!settings.apiBase.trim()) {
-      setAlexaNote('Turn on the API worker URL under Connections before Alexa can take this timer.');
-      return;
-    }
-    const seconds = Math.max(1, Math.round((timer.endsAt - Date.now()) / 1000));
-    const minutes = Math.max(1, Math.round(seconds / 60));
-    void fetch(`${settings.apiBase.replace(/\/$/, '')}/alexa/timer`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ durationSeconds: seconds, label: timer.label || 'Our Home' }),
-    })
-      .then(async (response) => {
-        const json = (await response.json()) as { ok?: boolean; say?: string; message?: string };
-        setAlexaNote(json.say || json.message || (json.ok ? 'Alexa timer requested.' : 'Alexa did not start the timer.'));
-      })
-      .catch(() => {
-        setAlexaNote(`Could not reach the API worker. Say: Alexa, tell Our Home to set a timer for ${minutes} minutes.`);
-      });
-  }, [timer.endsAt, timer.label, timer.status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,18 +145,17 @@ export function App() {
   useEffect(() => {
     if (timer.status !== 'done') return;
     let stopped = false;
-    const long = storeRef.current.settings.echoAlarm;
     const ring = () => {
       if (stopped) return;
       if (!audioRef.current) audioRef.current = new AudioContext();
       const context = audioRef.current;
       void context.resume().then(() => {
-        if (!stopped && context.state === 'running') playChime(context, long);
+        if (!stopped && context.state === 'running') playChime(context);
       });
-      navigator.vibrate?.(long ? [320, 100, 320, 100, 320, 160, 480] : [180, 80, 180, 80, 240]);
+      navigator.vibrate?.([180, 80, 180, 80, 240]);
     };
     ring();
-    const id = window.setInterval(ring, long ? 4200 : 2200);
+    const id = window.setInterval(ring, 2200);
     const unlock = () => {
       void audioRef.current?.resume();
     };
@@ -172,7 +167,7 @@ export function App() {
     };
   }, [timer.status]);
 
-  const dismissTimer = useCallback((fromRemote = false) => {
+  const dismissTimer = useCallback(() => {
     setTimer((current) => {
       if (current.status !== 'done') return current;
       return {
@@ -182,37 +177,28 @@ export function App() {
         endsAt: null,
       };
     });
-    if (!fromRemote) {
-      publishSignal({ event: 'dismiss', id: crypto.randomUUID(), label: '', from: thisDeviceId() });
-    }
   }, [setTimer]);
 
-  useEffect(() => {
-    adoptJoinCode();
-    return subscribeSignals((signal) => {
-      if (signal.from === thisDeviceId()) return;
-      if (signal.event === 'dismiss') {
-        dismissTimer(true);
-        return;
-      }
-      setTimer((current) => {
-        if (current.status === 'done') return current;
-        remoteAlarm.current = true;
-        return { ...current, status: 'done', remainingMs: 0, endsAt: null, label: signal.label || current.label };
-      });
-      notifyAlarm(signal.label);
-    });
-  }, [dismissTimer, setTimer]);
-
-  useEffect(() => {
-    if (timer.status !== 'done') return;
-    if (remoteAlarm.current) {
-      remoteAlarm.current = false;
+  const runTodoist = useCallback(() => {
+    const key = householdKey();
+    if (!key) {
+      setSyncNote('Save a household code on House first.');
       return;
     }
-    publishSignal({ event: 'alarm', id: crypto.randomUUID(), label: timer.label, from: thisDeviceId() });
-    notifyAlarm(timer.label);
-  }, [timer.status, timer.label]);
+    setTodoistBusy(true);
+    void syncTodoist(key)
+      .then((remote) => {
+        if (!remote) return;
+        setStore((latest) => {
+          const merged = { ...latest, ...mergeDocs(docFromStore(latest), remote) };
+          saveStore(merged);
+          return merged;
+        });
+        setSyncNote('Todoist sync finished.');
+      })
+      .catch((error: unknown) => setSyncNote(error instanceof Error ? error.message : 'Todoist sync failed.'))
+      .finally(() => setTodoistBusy(false));
+  }, []);
 
   useEffect(() => {
     if (locked || timer.status === 'running' || timer.status === 'done') return;
@@ -345,13 +331,23 @@ export function App() {
           </div>
         </header>
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-4" data-screen={screen}>
-          {screen === 'home' && <HomeScreen now={now} store={store} weather={weather} events={store.calendarCache.events} />}
+          {screen === 'home' && <HomeScreen now={now} store={store} weather={weather} events={store.calendarCache.events} onOpenTasks={() => setScreen('tasks')} />}
           {screen === 'calendar' && <CalendarScreen now={now} store={store} syncing={syncing} onSync={() => void sync()} />}
           {screen === 'meals' && (
             <MealsScreen now={now} store={store} onChange={(meals) => updateStore((current) => ({ ...current, meals }))} />
           )}
           {screen === 'chores' && (
             <ChoresScreen now={now} store={store} onChange={(chores) => updateStore((current) => ({ ...current, chores }))} />
+          )}
+          {screen === 'tasks' && (
+            <TasksScreen
+              now={now}
+              store={store}
+              syncing={todoistBusy}
+              syncNote={syncNote}
+              onChange={(tasks) => updateStore((current) => ({ ...current, tasks }))}
+              onTodoist={runTodoist}
+            />
           )}
           {screen === 'house' && (
             <HouseScreen
@@ -367,12 +363,10 @@ export function App() {
               onProxy={(icsProxy) => updateStore((current) => ({ ...current, settings: { ...current.settings, icsProxy } }))}
               onImport={importCalendar}
               onSync={() => void sync()}
-              spotifyRefresh={spotifyRefresh}
-              spotifyError={spotifyError}
-              alexaNote={alexaNote}
-              onPatchSettings={(partial) =>
-                updateStore((current) => ({ ...current, settings: { ...current.settings, ...partial } }))
-              }
+              syncNote={syncNote}
+              onTodoist={runTodoist}
+              onNote={(note) => updateStore((current) => ({ ...current, note }))}
+              onChecklists={(checklists) => updateStore((current) => ({ ...current, checklists }))}
             />
           )}
         </main>

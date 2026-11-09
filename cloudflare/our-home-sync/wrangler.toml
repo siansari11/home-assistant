@@ -1,0 +1,20 @@
+name = "our-home-sync"
+main = "src/index.js"
+compatibility_date = "2026-11-09"
+
+[[kv_namespaces]]
+binding = "HOME"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Deploy (free Cloudflare account sia-ansari11):
+#   npx wrangler kv namespace create HOME
+#   paste the id above
+#   npx wrangler secret put HOUSEHOLD_KEY
+#   npx wrangler secret put TODOIST_TOKEN
+#   optional: npx wrangler secret put GITHUB_TOKEN
+#   npx wrangler deploy
+# Devices enter the same HOUSEHOLD_KEY once under House → Household.
+# Expected URL: https://our-home-sync.sia-ansari11.workers.dev

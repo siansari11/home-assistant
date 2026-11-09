@@ -1,11 +1,12 @@
 import type { ScreenId } from '../types';
-import { CalendarIcon, ChoresIcon, HomeIcon, HouseIcon, MealsIcon } from './Icons';
+import { CalendarIcon, ChoresIcon, HomeIcon, HouseIcon, MealsIcon, TasksIcon } from './Icons';
 
 const ITEMS: { id: ScreenId; label: string; Icon: typeof HomeIcon }[] = [
   { id: 'home', label: 'Home', Icon: HomeIcon },
   { id: 'calendar', label: 'Calendar', Icon: CalendarIcon },
   { id: 'meals', label: 'Meals', Icon: MealsIcon },
   { id: 'chores', label: 'Chores', Icon: ChoresIcon },
+  { id: 'tasks', label: 'Tasks', Icon: TasksIcon },
   { id: 'house', label: 'House', Icon: HouseIcon },
 ];
 
@@ -23,7 +24,7 @@ export function NavBar({ current, onChange }: { current: ScreenId; onChange: (sc
             type="button"
             onClick={() => onChange(id)}
             aria-current={active ? 'page' : undefined}
-            className={`flex min-h-12 min-w-12 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-1 text-[11px] font-medium min-[900px]:flex-none min-[900px]:py-3 ${
+            className={`flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1 text-[10px] font-medium min-[900px]:flex-none min-[900px]:px-2 min-[900px]:text-[11px] min-[900px]:py-3 ${
               active ? 'bg-sage text-white' : 'text-muted hover:bg-sage-soft hover:text-ink'
             }`}
           >

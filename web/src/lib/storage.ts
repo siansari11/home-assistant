@@ -1,4 +1,5 @@
 import { seedChores, seedMeals, seedShopping } from '../data/content';
+import { seedTasks } from '../data/tasks';
 import type { CalendarCache, Chore, ShoppingItem, Store, TimerState } from '../types';
 
 const STORE_KEY = 'our-home.v1';
@@ -22,15 +23,16 @@ export function createDefaultStore(): Store {
     meals: seedMeals(),
     chores: seedChores(),
     shopping: seedShopping(),
+    tasks: seedTasks(),
+    note: { text: '', updatedAt: 0 },
+    checklists: [
+      { id: 'bins', title: 'Bins out', done: false, updatedAt: 0 },
+      { id: 'plants', title: 'Water plants', done: false, updatedAt: 0 },
+      { id: 'windows', title: 'Windows cracked after cooking', done: false, updatedAt: 0 },
+    ],
     settings: {
       calendars: { sehrish: '', andre: '' },
       icsProxy: '',
-      echoAlarm: false,
-      spotifyUrl: '',
-      spotifyClientId: '',
-      apiBase: '',
-      alexaSkillUrl: '',
-      ringOnAlexa: false,
     },
     calendarCache: EMPTY_CALENDAR,
   };
@@ -57,13 +59,12 @@ function hydrate(raw: unknown): Store {
         andre: typeof calendars.andre === 'string' ? calendars.andre : '',
       },
       icsProxy: typeof settings.icsProxy === 'string' ? settings.icsProxy : '',
-      echoAlarm: settings.echoAlarm === true,
-      spotifyUrl: typeof settings.spotifyUrl === 'string' ? settings.spotifyUrl : '',
-      spotifyClientId: typeof settings.spotifyClientId === 'string' ? settings.spotifyClientId : '',
-      apiBase: typeof settings.apiBase === 'string' ? settings.apiBase : '',
-      alexaSkillUrl: typeof settings.alexaSkillUrl === 'string' ? settings.alexaSkillUrl : '',
-      ringOnAlexa: settings.ringOnAlexa === true,
     },
+    tasks: Array.isArray(raw.tasks) ? (raw.tasks as Store['tasks']) : base.tasks,
+    note: isRecord(raw.note) && typeof (raw.note as { text?: unknown }).text === 'string'
+      ? (raw.note as Store['note'])
+      : base.note,
+    checklists: Array.isArray(raw.checklists) ? (raw.checklists as Store['checklists']) : base.checklists,
     calendarCache: {
       fetchedAt: typeof cache.fetchedAt === 'number' ? cache.fetchedAt : null,
       events: Array.isArray(cache.events) ? (cache.events as CalendarCache['events']) : [],

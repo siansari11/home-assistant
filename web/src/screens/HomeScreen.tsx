@@ -1,4 +1,4 @@
-import type { CalendarEvent, Chore, Store, WeatherReport } from '../types';
+import type { CalendarEvent, Chore, Store, Task, WeatherReport } from '../types';
 import { PEOPLE } from '../data/content';
 import { isChoreDone, isDueToday } from '../lib/chores';
 import { formatDay, formatLongDate, formatTime, greeting, todayIso } from '../lib/dates';
@@ -18,18 +18,24 @@ export function HomeScreen({
   store,
   weather,
   events,
+  onOpenTasks,
 }: {
   now: Date;
   store: Store;
   weather: WeatherReport | null;
   events: CalendarEvent[];
+  onOpenTasks: () => void;
 }) {
   const today = todayIso(now);
   const dinner = store.meals[today]?.dinner?.trim();
-  const due = store.chores.filter((chore) => isDueToday(chore, today));
+  const due = store.chores.filter((chore) => !chore.deletedAt && isDueToday(chore, today));
   const openChores = due.filter((chore) => !isChoreDone(chore, today));
   const shoppingLeft = store.shopping.filter((item) => !item.done).length;
   const upcoming = events.filter((event) => (event.allDay ? event.end > today : new Date(event.start).getTime() >= now.getTime() - 60_000)).slice(0, 3);
+  const deadlines = store.tasks
+    .filter((task) => !task.deletedAt && task.status !== 'done' && task.dueDate)
+    .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
+    .slice(0, 5);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-auto min-[900px]:overflow-hidden">
@@ -103,10 +109,32 @@ export function HomeScreen({
           )}
         </section>
       </div>
+      <section className="shrink-0 rounded-3xl border border-line bg-card p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-serif text-2xl">My deadlines</h2>
+          <button type="button" onClick={onOpenTasks} className="text-sm text-sage">All tasks</button>
+        </div>
+        <ul className="mt-2 space-y-1">
+          {deadlines.length === 0 && <li className="text-sm text-muted">No dated tasks.</li>}
+          {deadlines.map((task) => (
+            <Deadline key={task.id} task={task} today={today} />
+          ))}
+        </ul>
+      </section>
       <div className="shrink-0">
         <Marquee />
       </div>
     </div>
+  );
+}
+
+function Deadline({ task, today }: { task: Task; today: string }) {
+  const overdue = Boolean(task.dueDate && task.dueDate < today);
+  return (
+    <li className={`flex items-baseline justify-between gap-3 text-sm ${overdue ? 'text-clay-deep' : ''}`}>
+      <span className="min-w-0 truncate">{task.title}</span>
+      <span className="shrink-0">{task.dueDate}</span>
+    </li>
   );
 }
 

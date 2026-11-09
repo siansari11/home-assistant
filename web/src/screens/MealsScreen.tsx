@@ -19,7 +19,7 @@ export function MealsScreen({
   const setMeal = (day: string, slot: MealSlot, value: string) => {
     onChange({
       ...store.meals,
-      [day]: { ...store.meals[day], [slot]: value },
+      [day]: { ...store.meals[day], [slot]: value, updatedAt: Date.now() },
     });
   };
 
@@ -38,7 +38,6 @@ export function MealsScreen({
         <div>
           <p className="text-sm font-medium uppercase tracking-[0.16em] text-sage">Meals</p>
           <h1 className="font-serif text-4xl text-ink">The week</h1>
-          <p className="mt-1 text-sm text-muted">To hear the kitchen timer in another room, open House and copy the alarm link onto a phone.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="rounded-full border border-line bg-card px-3 py-2 text-sm" onClick={() => setWeekStart(addDays(weekStart, -7))}>

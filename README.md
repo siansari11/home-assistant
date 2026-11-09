@@ -29,15 +29,15 @@ Pushes to `main` run `.github/workflows/pages.yml`, which builds the app and:
 
 The repository is public, which free GitHub Pages requires. Do not edit the root `index.html` by hand; change `web/` and let the workflow publish the build.
 
-## Android app 1.0.0
+## Android app 1.1.0
 
-versionCode **1**, versionName **1.0.0**. This is a free [Capacitor](https://capacitorjs.com/) wrapper (`com.ourhome.dashboard`, display name Our Home). It does not use the Play Store or any paid service.
+versionCode **2**, versionName **1.1.0**. See `CHANGELOG.md`. This is a free [Capacitor](https://capacitorjs.com/) wrapper (`com.ourhome.dashboard`, display name Our Home). It does not use the Play Store or any paid service. Reinstall this build to pick up portrait and landscape.
 
 The app opens [https://siansari11.github.io/home-assistant/](https://siansari11.github.io/home-assistant/), so a Pages deploy updates the kitchen without a new APK. If that page cannot load, a local offline screen offers **Try again**. After one successful visit, the site’s service worker can open the saved dashboard without a connection.
 
 Kitchen behavior, already in the APK:
 
-- Landscape either way (`sensorLandscape`). For a portrait mount, change `android:screenOrientation` in `android/app/src/main/AndroidManifest.xml` to `fullSensor`.
+- Portrait and landscape. On a phone the navigation sits along the bottom.
 - The screen stays on.
 - Status and navigation bars hide. Swipe in from the edge to show them for a moment.
 - Our Home can be chosen as the tablet’s home app.
@@ -90,36 +90,28 @@ Desktop Chrome, for a spare laptop on the counter:
 google-chrome --kiosk https://siansari11.github.io/home-assistant/
 ```
 
-## Hear the timer in another room
+## Household sync
 
-No Amazon or Spotify account. The kitchen tablet starts the timer. A phone in the living room keeps Our Home open on the alarm link from **House → Hear it in another room**. When the timer hits zero, every joined phone and tablet rings until someone taps **Dismiss** on any of them. Allow alerts on the phone so it can buzz if the browser is in the background. Same-browser tabs also share the alarm instantly.
+Chores, meals, shopping, the sticky note, the house checklist, and tasks sync through `cloudflare/our-home-sync`. Each device stores a copy in `localStorage` and polls `https://our-home-sync.sia-ansari11.workers.dev` every 5 seconds. Enter the same household code once under **House → Household**. That code must match the worker secret `HOUSEHOLD_KEY`.
 
-## Connections
+Deploy:
 
-Spotify and Alexa are optional and need developer accounts. The household alarm link does not.
+```bash
+cd cloudflare/our-home-sync
+npx wrangler kv namespace create HOME
+```
 
-House → **Connections**. Music goes to an Echo through Spotify Connect. Alexa is only for timers.
+Put the printed id in `wrangler.toml` (`binding = "HOME"`). Then:
 
-### Spotify
+```bash
+npx wrangler secret put HOUSEHOLD_KEY
+npx wrangler secret put TODOIST_TOKEN
+npx wrangler deploy
+```
 
-1. Open [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) and create an app.
-2. Add redirect URIs exactly: `https://siansari11.github.io/home-assistant/` and `http://localhost:5173/home-assistant/`.
-3. Paste the Client ID into House → Connections. Leave the client secret on Spotify; this app uses PKCE and does not store it.
-4. In the Alexa app, link Spotify (Settings → Music & Podcasts) so each Echo appears as a Spotify Connect speaker.
-5. Tap **Connect Spotify**. Premium is required for the in-browser player. Transfer, play, pause, next, previous, and volume use Spotify Connect and work on the Echo without a custom music skill.
-6. Optional: deploy `cloudflare/our-home-api` and paste that origin into **API worker URL**. With a KV namespace named `TOKENS`, the worker keeps the Spotify refresh token. Otherwise the refresh token stays in this browser only.
+`TODOIST_TOKEN` is a Todoist personal API token. The worker keeps it server-side, creates a project named **Our Home**, and mirrors tasks both ways. A cron runs every 5 minutes. **Tasks → Sync Todoist** runs it immediately. Optional `GITHUB_TOKEN` lets the worker read the private status board later; the app itself does not fetch that file. New tasks from the board are added only when they are not already stored.
 
-### Ring the Echo
-
-The tablet cannot call Amazon’s Timers API on its own. That API only works while someone is talking to the skill. Our Home instead creates an Alexa **reminder**, which the Echo speaks aloud when the kitchen timer ends. The tablet alarm still loops until **Dismiss**.
-
-1. `cd cloudflare/our-home-api && npx wrangler kv namespace create TOKENS`, then uncomment the KV block in `wrangler.toml` with the id it prints.
-2. `npx wrangler secret put ALEXA_CLIENT_ID` and `npx wrangler secret put ALEXA_CLIENT_SECRET`. Those values are on the skill’s Build → Permissions page, under Alexa Skill Messaging. Then `npx wrangler deploy`.
-3. In the [Alexa Developer Console](https://developer.amazon.com/alexa/console/ask), create a custom skill named Our Home, invocation name `our home`. Paste `alexa/interaction-model.json`. Use `alexa/skill.json` as the manifest guide. Endpoint: `https://our-home-api.<account>.workers.dev/alexa`.
-4. Turn on both permissions: Reminders (`alexa::alerts:reminders:skill:readwrite`) and Timers (`alexa::alerts:timers:skill:readwrite`).
-5. Build the skill. In the Alexa app, open Skills → Your Skills → Dev, enable Our Home, and allow reminders.
-6. On the tablet, House → Connections → paste the worker origin (no `/alexa`) into **API worker URL**. Tap **Connect Alexa** if you still need the dev-skill list. Turn on **Ring on Echo**. **Test Echo in 1 minute** checks the path.
-7. Start the kitchen timer. The Echo announces at the end. If the worker has no saved Alexa login yet, it tells you to say `Alexa, tell Our Home to set a timer for … minutes`, which uses the in-session Timers API.
+Google Tasks is not connected. It needs a Google OAuth app, which is not set up. The Todoist project is the shared list for now.
 
 ## Calendar sync
 
