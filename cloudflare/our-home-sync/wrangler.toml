@@ -12,7 +12,8 @@ crons = ["*/5 * * * *"]
 # Deploy (free Cloudflare account sia-ansari11):
 #   npx wrangler kv namespace create HOME
 #   paste the id above
-#   npx wrangler secret put HOUSEHOLD_KEY
+#   npx wrangler secret put HOUSEHOLD_KEY_HASH
+#   # sha256 hex of the household code. HOUSEHOLD_KEY still works if the hash is unset.
 #   npx wrangler secret put TODOIST_TOKEN
 #   optional: npx wrangler secret put GITHUB_TOKEN
 #   npx wrangler deploy

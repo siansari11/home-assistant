@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+- Tasks screen matches the Status Board layout: stat tiles, Do now cards, and a deadline timeline.
+- Home deadlines use the same overdue and upcoming colors.
+- Household sync accepts `HOUSEHOLD_KEY_HASH` (sha-256 hex) and still accepts `HOUSEHOLD_KEY`.
+
 ## 1.1.0
 
 - Kitchen timer still rings until Dismiss.

@@ -1,6 +1,6 @@
 import { seedChores, seedMeals, seedShopping } from '../data/content';
 import { seedTasks } from '../data/tasks';
-import type { CalendarCache, Chore, ShoppingItem, Store, TimerState } from '../types';
+import type { CalendarCache, Chore, ShoppingItem, Store, Task, TaskCategory, TimerState } from '../types';
 
 const STORE_KEY = 'our-home.v1';
 const TIMER_KEY = 'our-home.timer.v1';
@@ -38,6 +38,16 @@ export function createDefaultStore(): Store {
   };
 }
 
+const CATEGORIES = new Set<TaskCategory>(['deadline', 'process', 'email', 'ask']);
+
+function normalizeTasks(tasks: Task[]): Task[] {
+  const seeded = new Map(seedTasks().map((task) => [task.id, task.category]));
+  return tasks.map((task) => ({
+    ...task,
+    category: CATEGORIES.has(task.category) ? task.category : seeded.get(task.id) || 'process',
+  }));
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -60,7 +70,7 @@ function hydrate(raw: unknown): Store {
       },
       icsProxy: typeof settings.icsProxy === 'string' ? settings.icsProxy : '',
     },
-    tasks: Array.isArray(raw.tasks) ? (raw.tasks as Store['tasks']) : base.tasks,
+    tasks: Array.isArray(raw.tasks) ? normalizeTasks(raw.tasks as Task[]) : base.tasks,
     note: isRecord(raw.note) && typeof (raw.note as { text?: unknown }).text === 'string'
       ? (raw.note as Store['note'])
       : base.note,

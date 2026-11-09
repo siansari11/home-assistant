@@ -131,7 +131,7 @@ export function HomeScreen({
 function Deadline({ task, today }: { task: Task; today: string }) {
   const overdue = Boolean(task.dueDate && task.dueDate < today);
   return (
-    <li className={`flex items-baseline justify-between gap-3 text-sm ${overdue ? 'text-clay-deep' : ''}`}>
+    <li className={`flex items-baseline justify-between gap-3 rounded-xl border px-2 py-1 text-sm ${overdue ? 'border-red-400 bg-red-50 text-red-700' : 'border-emerald-400 bg-emerald-50 text-emerald-800'}`}>
       <span className="min-w-0 truncate">{task.title}</span>
       <span className="shrink-0">{task.dueDate}</span>
     </li>

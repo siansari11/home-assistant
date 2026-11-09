@@ -24,12 +24,15 @@ export type ShoppingItem = {
   deletedAt?: number;
 };
 
-export type TaskStatus = 'waiting' | 'in_progress' | 'done';
+export type TaskStatus = 'waiting' | 'in_progress' | 'done' | 'blocked';
+
+export type TaskCategory = 'deadline' | 'process' | 'email' | 'ask';
 
 export type Task = {
   id: string;
   title: string;
   status: TaskStatus;
+  category: TaskCategory;
   nextStep: string;
   dueDate: string | null;
   updatedAt: number;

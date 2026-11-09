@@ -158,10 +158,13 @@ async function refreshFromGitHub(env, state) {
     if (!id) continue;
     const existing = (state.tasks || []).find((task) => task.id === id || task.title === item.title);
     if (existing) continue;
+    const category = ['deadline', 'process', 'email', 'ask'].includes(item.category) ? item.category : 'process';
+    const status = ['waiting', 'in_progress', 'done', 'blocked'].includes(item.status) ? item.status : 'waiting';
     state.tasks.push({
       id,
       title: item.title || id,
-      status: item.status === 'in_progress' || item.status === 'done' ? item.status : 'waiting',
+      status,
+      category,
       nextStep: item.next_step || item.nextStep || '',
       dueDate: item.due_date || item.dueDate || null,
       updatedAt: now,
@@ -170,15 +173,22 @@ async function refreshFromGitHub(env, state) {
   return state;
 }
 
-function authorized(request, env) {
+async function sha256(text) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function authorized(request, env) {
   const key = request.headers.get('X-Household-Key') || '';
+  if (!key) return false;
+  if (env.HOUSEHOLD_KEY_HASH) return (await sha256(key)) === String(env.HOUSEHOLD_KEY_HASH).toLowerCase();
   return Boolean(env.HOUSEHOLD_KEY) && key === env.HOUSEHOLD_KEY;
 }
 
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors() });
-    if (!authorized(request, env)) return json({ error: 'Household key was rejected.' }, 401);
+    if (!(await authorized(request, env))) return json({ error: 'Household key was rejected.' }, 401);
     const url = new URL(request.url);
     if (url.pathname === '/v1/state' && request.method === 'GET') return json(await load(env));
     if (url.pathname === '/v1/state' && request.method === 'PUT') {

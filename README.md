@@ -29,9 +29,9 @@ Pushes to `main` run `.github/workflows/pages.yml`, which builds the app and:
 
 The repository is public, which free GitHub Pages requires. Do not edit the root `index.html` by hand; change `web/` and let the workflow publish the build.
 
-## Android app 1.1.0
+## Android app 1.2.0
 
-versionCode **2**, versionName **1.1.0**. See `CHANGELOG.md`. This is a free [Capacitor](https://capacitorjs.com/) wrapper (`com.ourhome.dashboard`, display name Our Home). It does not use the Play Store or any paid service. Reinstall this build to pick up portrait and landscape.
+versionCode **3**, versionName **1.2.0**. See `CHANGELOG.md`. This is a free [Capacitor](https://capacitorjs.com/) wrapper (`com.ourhome.dashboard`, display name Our Home). It does not use the Play Store or any paid service. Reinstall this build for the Status Board-style tasks screen.
 
 The app opens [https://siansari11.github.io/home-assistant/](https://siansari11.github.io/home-assistant/), so a Pages deploy updates the kitchen without a new APK. If that page cannot load, a local offline screen offers **Try again**. After one successful visit, the site’s service worker can open the saved dashboard without a connection.
 
@@ -92,7 +92,7 @@ google-chrome --kiosk https://siansari11.github.io/home-assistant/
 
 ## Household sync
 
-Chores, meals, shopping, the sticky note, the house checklist, and tasks sync through `cloudflare/our-home-sync`. Each device stores a copy in `localStorage` and polls `https://our-home-sync.sia-ansari11.workers.dev` every 5 seconds. Enter the same household code once under **House → Household**. That code must match the worker secret `HOUSEHOLD_KEY`.
+Chores, meals, shopping, the sticky note, the house checklist, and tasks sync through `cloudflare/our-home-sync`. Each device stores a copy in `localStorage` and polls `https://our-home-sync.sia-ansari11.workers.dev` every 5 seconds. Enter the same household code once under **House → Household**. That code must match the worker secret. The deployed worker checks `HOUSEHOLD_KEY_HASH` (sha-256 hex of the code) and falls back to `HOUSEHOLD_KEY` if the hash is not set.
 
 Deploy:
 
@@ -104,7 +104,7 @@ npx wrangler kv namespace create HOME
 Put the printed id in `wrangler.toml` (`binding = "HOME"`). Then:
 
 ```bash
-npx wrangler secret put HOUSEHOLD_KEY
+npx wrangler secret put HOUSEHOLD_KEY_HASH
 npx wrangler secret put TODOIST_TOKEN
 npx wrangler deploy
 ```
